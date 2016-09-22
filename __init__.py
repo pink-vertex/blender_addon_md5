@@ -17,16 +17,16 @@
 # ##### END GPL LICENSE BLOCK #####
 
 bl_info = {
-    "name": "Id Tech 4 md5mesh and md5anim format",
-    "author": "pink vertex",
-    "version": (0, 1),
-    "blender": (2, 77, 0),
-    "location": "File -> Import-Export",
-    "description": "Import-Export *.md5mesh and *.md5anim files",
-    "warning": "",
-    "wiki_url": "",
-    "category": "Import-Export",
-    }
+	"name": "Id Tech 4 md5mesh and md5anim format",
+	"author": "pink vertex",
+	"version": (0, 1),
+	"blender": (2, 77, 0),
+	"location": "File -> Import-Export",
+	"description": "Import-Export *.md5mesh and *.md5anim files",
+	"warning": "",
+	"wiki_url": "",
+	"category": "Import-Export",
+	}
 
 if "bpy" in locals():
 	import sys
@@ -51,7 +51,7 @@ class OT_IMPORT_MESH_md5mesh(bpy.types.Operator, ImportHelper):
 
 	def execute(self, context):
 		read_md5mesh(self.filepath)
-		return {"FINISHED"}	
+		return {"FINISHED"}
 
 
 class OT_EXPORT_MESH_md5mesh(bpy.types.Operator, ExportHelper):
@@ -65,7 +65,7 @@ class OT_EXPORT_MESH_md5mesh(bpy.types.Operator, ExportHelper):
 	@classmethod
 	def poll(cls, context):
 		return (context.active_object and
-			    context.active_object.type == "ARMATURE")
+				context.active_object.type == "ARMATURE")
 
 	def execute(self, context):
 		write_md5mesh(self.filepath, context.scene, context.active_object)
@@ -87,7 +87,7 @@ class OT_IMPORT_ANIM_md5anim(bpy.types.Operator, ImportHelper):
 	def execute(self, context):
 		bpy.ops.object.mode_set(mode="OBJECT")
 		read_md5anim(self.filepath)
-		return {'FINISHED'}	
+		return {'FINISHED'}
 
 class OT_EXPORT_ANIM_md5anim(bpy.types.Operator, ExportHelper):
 	bl_idname = "export_anim.md5"

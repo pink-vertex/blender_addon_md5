@@ -9,20 +9,20 @@ def unpack_tuple(mobj, start, end, conv=float, seq=Vector):
 	return seq(conv(mobj.group(i)) for i in range(start, end + 1))
 
 def create_fcurves(action, data_path, dim):
-    return tuple(action.fcurves.new(data_path, i) for i in range(dim))
+	return tuple(action.fcurves.new(data_path, i) for i in range(dim))
 
 def insert_keyframe(fcurves, time, values, interpolation="LINEAR"):
-    for fcu, val in zip(fcurves, values):
-        kf = fcu.keyframe_points.insert(time, val, {'FAST'})
-        kf.interpolation = interpolation
+	for fcu, val in zip(fcurves, values):
+		kf = fcu.keyframe_points.insert(time, val, {'FAST'})
+		kf.interpolation = interpolation
 
 def mat_offset(pose_bone):
 	bone = pose_bone.bone
-	mat_offset = bone.matrix.to_4x4()
-	mat_offset.translation = bone.head
+	mat = bone.matrix.to_4x4()
+	mat.translation = bone.head
 	if pose_bone.parent:
-		mat_offset.translation.y += bone.parent.length
-	return mat_offset
+		mat.translation.y += bone.parent.length
+	return mat
 
 def create_empty(name, parent, loc, rot):
 	empty = bpy.data.objects.get(name)
@@ -344,7 +344,7 @@ def calc_bbox_from_object(mesh_objects):
 	return bb_min, bb_max
 
 def get_parent_index(bone, lut):
-	if bone.parent == None: return -1
+	if bone.parent is None: return -1
 	return lut[bone.parent.name]
 
 class VertData:

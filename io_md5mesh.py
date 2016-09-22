@@ -176,7 +176,7 @@ class Mesh:
 
 			for key, value in bmv[layer_deform].items():
 				if value < 5e-4:
-					logging.warning("Skipping weight with value %.2f of vertex %d" % (vg_elem.value, mv.index))
+					logging.warning("Skipping weight with value %.2f of vertex %d" % (value, bmv.index))
 					continue
 			
 				vertex_group = vertex_groups[key]
@@ -206,7 +206,7 @@ class Mesh:
 				vert.uv = loop[layer_uv].uv
 
 	def set_weights(self, joints, lut):
-		if self.use_bmesh == True:
+		if self.use_bmesh:
 			return self.set_weights_bm(joints, lut)
 
 		vertex_groups = self.mesh_obj.vertex_groups
@@ -289,7 +289,8 @@ class Joint:
 	def __init__(self):
 		self.name   = ""
 		self.index  = -1
-		self.parent = -1
+		self.parent_index = -1
+		self.parent_name = ""
 
 		self.mat     = None
 		self.mat_inv = None
@@ -298,26 +299,25 @@ class Joint:
 		self.rot = None
 
 	def serialize(self, stream):
-		fmt = "\t\"{name:s}\"\t{parent:d} {loc:s} {rot:s}\t\t// {pn:s}\n" 
+		fmt = "\t\"{name:s}\"\t{pindex:d} {loc:s} {rot:s}\t\t// {pname:s}\n"
 		stream.write(fmt.format(
 			name   = self.name,
-			parent = self.parent,
+			pindex = self.parent_index,
 			loc    = fmt_row3f.format(*self.loc),
 			rot    = fmt_row3f.format(*self.rot[1:]),
-			pn     = self.pn
+			pname  = self.parent_name
 		))
 
 	def from_bone(self, bone, index, lut):
 		self.name = bone.name 
 		self.index = lut[bone.name] = index
-		self.parent = self.get_parent_index(bone, lut)
+		self.parent_index = self.get_parent_index(bone, lut)
+		self.parent_name = bone.parent.name if bone.parent is not None else ""
 		self.mat = bone.matrix_local.copy()
 		self.mat_inv = self.mat.inverted()
 		self.loc, self.rot, scale = self.mat.decompose()
 		self.rot *= -1.0
 
-		self.pn = bone.parent.name if bone.parent is not None else ""
-	
 	@classmethod
 	def get_parent_index(cls, bone, lut):
 		if bone.parent is None: return -1
