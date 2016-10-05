@@ -1,31 +1,8 @@
-import re
-import bpy
-import math
 import bmesh
 import logging
-from mathutils import Vector, Matrix, Quaternion
-# from .utils import *
+from .shared import * # for brevity use star import, also imports modules
 
 logging.basicConfig(style="{", level=logging.WARNING)
-
-dbg_tuple2f = " ".join(("{: > 7.2f}",) * 2)
-dbg_tuple3f = " ".join(("{: > 7.2f}",) * 3)
-
-dbg_joint   = " ".join((" Name",       "{: <20s}",
-						 "Parent",     "{: > 3d}",
-						 "Offset",     dbg_tuple3f,
-						 "Quaternion", dbg_tuple3f))
-
-dbg_vert    = " ".join((" Index",	"{: >4d}",
-					     "UV",		dbg_tuple2f,
-						 "First Weight Index", "{: >4d}",
-						 "Number of Weights",  "{:d}"))
-
-fmt_row2f = "( {:.6f} {:.6f} )" 
-fmt_row3f = "( {:.6f} {:.6f} {:.6f} )" 
-
-def unpack_tuple(mobj, start, end, conv=float, seq=Vector):
-	return seq(conv(mobj.group(i)) for i in range(start, end + 1))
 
 #-------------------------------------------------------------------------------
 # Classes
@@ -50,8 +27,6 @@ class Vert:
 		self.bmv = None
 
 		self.uv.y = 1.0 - self.uv.y
-		
-		logging.debug(dbg_vert.format(self.index, *self.uv, self.fwi, self.nof_weights))
 
 	def get_weights(self, weights):
 		return weights[self.fwi: self.fwi + self.nof_weights]
@@ -98,28 +73,21 @@ class Weight:
 
 
 class Mesh:
-	def __init__(self, mesh_obj, use_bmesh=False):
+	def __init__(self, mesh_obj):
 		mesh = mesh_obj.data
 
-		self.use_bmesh = use_bmesh
 		self.mesh_obj = mesh_obj
 		self.weights = []
 		self.shader = mesh.materials[0].name
 
-		if not self.use_bmesh:
-			self.bm = None
-			mesh.calc_tessface()
-			self.tris = [tf.vertices for tf in mesh.tessfaces]
-			nof_verts = len(mesh.vertices)
-		else:
-			self.bm = bmesh.new()
-			self.bm.from_mesh(mesh)
-			self.process_for_export()
-			self.bm.verts.index_update()
-			self.tris = [[v.index for v in f.verts] 
-								  for f in self.bm.faces]		
-			nof_verts = len(self.bm.verts)
-	
+		self.bm = bmesh.new()
+		self.bm.from_mesh(mesh)
+		self.process_for_export()
+		self.bm.verts.index_update()
+		self.tris = [[v.index for v in f.verts]
+							  for f in self.bm.faces]
+		nof_verts = len(self.bm.verts)
+
 		self.verts = [Vert() for i in range(nof_verts)]
 
 	def process_for_export(self):
@@ -135,8 +103,8 @@ class Mesh:
 
 		for edge in bm.edges:
 			if not edge.is_manifold: continue
- 
-			uvs   = [None] * 2	
+
+			uvs   = [None] * 2
 			loops = [None] * 2
 
 			loops[0] = list(edge.link_loops)
@@ -145,7 +113,7 @@ class Mesh:
 			for i in range(2):
 				uvs[i] = list(map(lambda l: l[layer_uv].uv, loops[i]))
 
-			results = (vec_equals(uvs[0][0], uvs[1][1]), 
+			results = (vec_equals(uvs[0][0], uvs[1][1]),
 					   vec_equals(uvs[0][1], uvs[1][0]))
 
 			if not all(results):
@@ -161,7 +129,7 @@ class Mesh:
 		# flip normals
 		bmesh.ops.reverse_faces(bm, faces=bm.faces[:], flip_multires=False)
 
-	def set_weights_bm(self, joints, lut):
+	def set_weights(self, joints, lut):
 		vertex_groups = self.mesh_obj.vertex_groups
 		layer_deform = self.bm.verts.layers.deform.active
 		layer_uv = self.bm.loops.layers.uv.active
@@ -178,10 +146,9 @@ class Mesh:
 				if value < 5e-4:
 					logging.warning("Skipping weight with value %.2f of vertex %d" % (value, bmv.index))
 					continue
-			
+
 				vertex_group = vertex_groups[key]
 				joint_index = lut[vertex_group.name]
-				joint = joints[joint_index]
 
 				weight = Weight()
 				weight.index = first_index + nof_weights
@@ -189,82 +156,28 @@ class Mesh:
 				weight.value = value
 				weights.append(weight)
 				nof_weights += 1
-	
+
 			v.fwi = first_index
 			v.nof_weights = nof_weights
-			self.weights.extend(weights)	
-			
-			# r = Σ mi wi ri, ensure Σ wi = 1.0 and choose mi^-1 r 
-			co = (1 / sum(weight.value for weight in weights)) * bmv.co	
+			self.weights.extend(weights)
+
+			# r = Σ mi wi ri, ensure Σ wi = 1.0 and choose mi^-1 r
+			co = (1 / sum(weight.value for weight in weights)) * bmv.co
 
 			for weight in weights:
-				weight.offset = joints[weight.joint_index].mat_inv * co 
+				weight.offset = joints[weight.joint_index].mat_inv * co
 
 		for face in self.bm.faces:
 			for loop in face.loops:
 				vert = self.verts[loop.vert.index]
 				vert.uv = loop[layer_uv].uv
 
-	def set_weights(self, joints, lut):
-		if self.use_bmesh:
-			return self.set_weights_bm(joints, lut)
-
-		vertex_groups = self.mesh_obj.vertex_groups
-		mesh = self.mesh_obj.data
-		first_index = 0
-		nof_weights = 0
-
-		for v, mv in zip(self.verts, mesh.vertices):
-			v.index = mv.index
-			first_index = first_index + nof_weights
-			nof_weights = 0
-			weights = [] # [None] * len(mv.groups)
-
-			for vg_elem in mv.groups:
-				if vg_elem.weight < 5e-4:
-					logging.warning("Skipping weight with value %.2f of vertex %d" % (vg_elem.value, mv.index))
-					continue
-
-				vertex_group = vertex_groups[vg_elem.group]			 
-				joint_index = lut[vertex_group.name]
-				joint = joints[joint_index]				
-
-				weight = Weight()
-				weight.index = first_index + nof_weights
-				weight.joint_index = joint_index 
-				weight.value = vg_elem.weight
-				weights.append(weight)
-				# weights[nof_weights] = weight
-				nof_weights += 1
-
-			v.fwi = first_index
-			v.nof_weights = nof_weights
-			self.weights.extend(weights)			
-
-			# r = Σ mi wi ri, ensure Σ wi = 1.0 and choose mi^-1 r 
-			co = (1 / sum(weight.value for weight in weights)) * mv.co	
-
-			for weight in weights:
-				weight.offset = joints[weight.joint_index].mat_inv * co 
-			
-		uv = mesh.uv_layers.active
-		if uv is None: raise ValueError
-
-		for loop_index, uv_loop in enumerate(uv.data):
-			loop = mesh.loops[loop_index]
-			vert = self.verts[loop.vertex_index]
-			# check equal, average ?
-			if vert.uv is None:	
-				vert.uv = uv_loop.uv.copy()
-			elif (uv_loop.uv - vert.uv).magnitude > 5e-2:
-				logging.warning("Loop UVs do not match for Vertex %d" % loop.vertex_index)
-
 	def serialize(self, stream):
 		stream.write("\nmesh {\n")
 		stream.write("\t// meshes: %s\n"   % self.mesh_obj.name)
 		stream.write("\n\tshader \"%s\"\n" % self.shader)
 		stream.write("\n\tnumverts %d\n"   % len(self.verts))
-		
+
 		for vert in self.verts:
 			vert.serialize(stream)
 
@@ -277,10 +190,9 @@ class Mesh:
 			weight.serialize(stream)
 
 		stream.write("}\n")
-	
+
 	def finish(self):
-		if self.use_bmesh:
-			self.bm.free()
+		self.bm.free()
 		self.verts = None
 		self.weights = None
 		self.tris = None
@@ -309,7 +221,7 @@ class Joint:
 		))
 
 	def from_bone(self, bone, index, lut):
-		self.name = bone.name 
+		self.name = bone.name
 		self.index = lut[bone.name] = index
 		self.parent_index = self.get_parent_index(bone, lut)
 		self.parent_name = bone.parent.name if bone.parent is not None else ""
@@ -321,41 +233,35 @@ class Joint:
 	@classmethod
 	def get_parent_index(cls, bone, lut):
 		if bone.parent is None: return -1
-		return lut[bone.parent.name]	
+		return lut[bone.parent.name]
 
 #-------------------------------------------------------------------------------
 # Read md5mesh
 #-------------------------------------------------------------------------------
 
-def construct(*args):
-	return re.compile("\s*" + "\s+".join(args))
-
 def read_md5mesh(filepath):
-	t_Int	= "(-?\d+)"
+	t_Int   = "(-?\d+)"
 	t_Float = "(-?\d+\.\d+)"
-	t_Word	= "(\S+)"
+	t_Word  = "(\S+)"
 	t_QuotedString = '"([^"]*)"' # does not allow escaping \"
 	t_Tuple2f = "\s+".join(("\(", t_Float, t_Float, "\)"))
 	t_Tuple3f = "\s+".join(("\(", t_Float, t_Float, t_Float, "\)"))
 
 	re_joint  = construct(t_QuotedString, t_Int, t_Tuple3f, t_Tuple3f)
 	re_vert   = construct("vert", t_Int, t_Tuple2f, t_Int, t_Int)
-	re_tri	  = construct("tri", t_Int, t_Int, t_Int, t_Int)
+	re_tri    = construct("tri", t_Int, t_Int, t_Int, t_Int)
 	re_weight = construct("weight", t_Int, t_Int, t_Float, t_Tuple3f)
-	re_end	  = construct("}")
+	re_end    = construct("}")
 	re_joints = construct("joints", "{")
 	re_nverts = construct("numverts", t_Int)
-	re_mesh	  = construct("mesh", "{")
+	re_mesh   = construct("mesh", "{")
 	re_shader = construct("shader", t_QuotedString)
 	re_mesh_label = construct(".*?// meshes: (.*)$") # comment, used by sauerbraten
 
-	with open(filepath, "r") as fobj: 
+	with open(filepath, "r") as fobj:
 		lines = iter(fobj.readlines())
-	
-	for line in lines:
-		mobj = re_joints.match(line)
-		if mobj is not None:
-			break
+
+	skip_until(re_joints, lines)
 
 	arm_obj, matrices = do_joints(lines, re_joint, re_end)
 	results = []
@@ -402,7 +308,6 @@ def do_joints(lines, re_joint, re_end):
 
 	matrices = []
 	name_to_index = {}
-	empties = [None] * len(joints)
 	VEC_Y = Vector((0.0, 1.0, 0.0))
 	VEC_Z = Vector((0.0, 0.0, 1.0))
 
@@ -416,8 +321,6 @@ def do_joints(lines, re_joint, re_end):
 		quat = unpack_tuple(mobj, 6, 8, seq=tuple)
 		name_to_index[name] = index
 
-		logging.debug(dbg_joint.format(name, parent, *loc, *quat))
-
 		eb = edit_bones.new(name)
 		if parent >= 0:
 			eb.parent = edit_bones[parent]
@@ -430,8 +333,6 @@ def do_joints(lines, re_joint, re_end):
 		eb.tail = loc + quat * VEC_Y
 		eb.align_roll(quat * VEC_Z)
 
-#		empties[index] = create_empty(name, empties[parent] if parent >= 0 else None, mat)
-
 	for eb in arm.edit_bones:
 		if len(eb.children) == 1:
 			child = eb.children[0]
@@ -443,10 +344,6 @@ def do_joints(lines, re_joint, re_end):
 	bpy.ops.object.mode_set()
 	arm_obj['name_to_index'] = name_to_index
 	return arm_obj, matrices
-	
-def process_match_objects(mobj_list, cls):
-	for index, mobj in enumerate(mobj_list):
-		mobj_list[index] = cls(mobj)
 
 def do_mesh(lines, reg_exprs, matrices):
 	(re_shader,
@@ -457,13 +354,13 @@ def do_mesh(lines, reg_exprs, matrices):
 	 re_nverts,
 	 re_label) = reg_exprs
 
-	mobjs_label, mobjs_shader = gather_multi([re_label, re_shader], re_nverts, lines)
-	label  =  mobjs_label[0].group(1) if len(mobjs_label)  > 0 else "md5mesh"
+	mobjs__label, mobjs_shader = gather_multi([re_label, re_shader], re_nverts, lines)
+	label  = mobjs__label[0].group(1) if len(mobjs__label) > 0 else "md5mesh"
 	shader = mobjs_shader[0].group(1) if len(mobjs_shader) > 0 else ""
 
 	verts, tris, weights = gather_multi(
-		[re_vert, re_tri, re_weight], 
-		re_end, 
+		[re_vert, re_tri, re_weight],
+		re_end,
 		lines
 	)
 
@@ -482,8 +379,11 @@ def do_mesh(lines, reg_exprs, matrices):
 	for mobj_tri in tris:
 		vertex_indices = unpack_tuple(mobj_tri, 2, 4, int, list)
 		bm_verts = [verts[vertex_index].bmv for vertex_index in vertex_indices]
-		# bm_verts.reverse()
-		face = bm.faces.new(bm_verts)
+		# bm_verts.reverse() - use bmesh operator instead
+		try:
+			face = bm.faces.new(bm_verts)
+		except ValueError: # some models contain duplicate faces
+			continue
 		face.smooth = True
 
 	for vert in verts:
@@ -496,64 +396,9 @@ def do_mesh(lines, reg_exprs, matrices):
 
 	return label, shader, bm
 
-def gather(regex, end_regex, lines):
-	return gather_multi([regex], end_regex, lines)[0]
-
-def gather_multi(regexes, end_regex, lines):
-	results = [[] for regex in regexes]
-	
-	for line in lines:
-		if end_regex.match(line):
-			break
-
-		for regex, result in zip(regexes, results): 
-			mobj = regex.match(line)
-			if mobj:
-				result.append(mobj)
-				break
-
-	return results
-
-def skip_until(regex, lines):
-	for line in lines:
-		if regex.match(line):
-			return line
-	# iterator exhausted
-	return None
-
-def restore_quat(rx, ry, rz):
-	EPS = -5e-2
-	t = 1.0 - rx*rx - ry*ry - rz*rz
-	if EPS > t: 	   raise ValueError
-	if EPS < t  < 0.0: return  Quaternion((          0.0, rx, ry, rz))
-	else:			   return -Quaternion((-math.sqrt(t), rx, ry, rz))
-			
-def create_empty(name, parent, mat):
-	empty = bpy.data.objects.get("empty_" + name)
-	if empty is None:
-		empty = bpy.data.objects.new("empty_" + name, None)
-		bpy.context.scene.objects.link(empty)
-
-	empty.empty_draw_size = 1.0
-	empty.empty_draw_type = "ARROWS"
-	empty.parent = parent
-	empty.show_x_ray = True
-	empty.matrix_world = mat
-	return empty
-
 #-------------------------------------------------------------------------------
 # Write md5mesh
 #-------------------------------------------------------------------------------
-	
-def is_mesh_object(obj):
-	return obj.type == "MESH"
-
-def has_armature_modifier(obj, arm_obj):
-	for modifier in obj.modifiers:
-		if modifier.type == "ARMATURE":
-			if modifier.object == arm_obj:
-				return True
-	return False
 
 def on_active_layer(scene, obj):
 	layers_scene = scene.layers
@@ -568,42 +413,26 @@ def write_md5mesh(filepath, scene, arm_obj):
 	meshes = []
 
 	for mesh_obj in filter(is_mesh_object, scene.objects):
-		if (on_active_layer(scene, mesh_obj) and 
+		if (on_active_layer(scene, mesh_obj) and
 			has_armature_modifier(mesh_obj, arm_obj)):
-			meshes.append(Mesh(mesh_obj, True))
+			meshes.append(Mesh(mesh_obj))
 
 	bones = arm_obj.data.bones
 	joints = [Joint() for i in range(len(bones))]
-	name_to_index = arm_obj.get("name_to_index")
+	name_to_index = get_name_to_index_dict(arm_obj)
 
-	if name_to_index is None:
-		name_to_index = {}
-		root_bones = (bone for bone in arm_obj.data.bones if bone.parent is None)
-
-		index = 0
-		for root_bone in root_bones:
-			joints[index].from_bone(root_bone, index, name_to_index)
-			index += 1
-
-			for child in root_bone.children_recursive:
-				joints[index].from_bone(child, index, name_to_index)
-				index += 1
-
-		arm_obj["name_to_index"] = name_to_index
-
-	else:
-		for bone in bones:
-			index = name_to_index[bone.name]
-			joints[index].from_bone(bone, index, name_to_index)
+	for bone in bones:
+		index = name_to_index[bone.name]
+		joints[index].from_bone(bone, index, name_to_index)
 
 	for mesh in meshes:
-		mesh.set_weights(joints, name_to_index)	
+		mesh.set_weights(joints, name_to_index)
 
 	with open(filepath, "w") as stream:
 		stream.write("MD5Version 10\n")
 		stream.write("commandline \"\"\n\n")
 
-		stream.write("numJoints %d\n" % len(joints)) 
+		stream.write("numJoints %d\n" % len(joints))
 		stream.write("numMeshes %d\n" % len(meshes))
 
 		stream.write("\njoints {\n")
@@ -619,7 +448,7 @@ def write_md5mesh(filepath, scene, arm_obj):
 # Test
 #-------------------------------------------------------------------------------
 
-if __name__ == "__main__":
+def test():
 	import os
 
 	filepath = os.path.expanduser(
@@ -639,7 +468,7 @@ if __name__ == "__main__":
 		obj = bpy.data.objects[0]
 		scene.objects.unlink(obj)
 		obj.user_clear()
-		bpy.data.objects.remove(obj)	
+		bpy.data.objects.remove(obj)
 
 	read_md5mesh(filepath)
 	write_md5mesh(output, scene, bpy.context.active_object)
