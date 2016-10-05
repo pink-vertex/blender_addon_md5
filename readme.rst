@@ -1,6 +1,15 @@
-==================================================================================
-Blender Addon - Import and Export id tech 4 ``*.md5mesh`` and ``*.md5anim`` files
-==================================================================================
+====================================================================================
+Blender Addon - Import and Export `id tech 4`_ ``*.md5mesh`` and ``*.md5anim`` files
+====================================================================================
+
+Installation:
+=============
+
+Download this repository as `zip-archive`_ and rename it to ``md5.zip``.
+Go to Blender User Preferences -> Addons and click ``Install from File...`` and
+select the zip-archive in the file browser which pops up.
+
+Afterwards activate the addon under the category Import-Export or User.
 
 Import:
 =======
@@ -63,4 +72,6 @@ Notes:
   the location vectors and rotation quaternions, the addon will always export all
   components using mask 63. 
 
+.. _zip-archive: https://github.com/pink-vertex/blender_addon_md5/archive/Release.zip
+.. _id tech 4: https://github.com/id-Software/DOOM-3 
 .. _md5 addon: https://sourceforge.net/p/blenderbitsbobs/wiki/MD5%20exporter/
