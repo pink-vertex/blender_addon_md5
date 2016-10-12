@@ -66,7 +66,7 @@ def get_name_to_index_dict(arm_obj):
 
 	else:
 		name_to_index = {}
-		root_bones = (pb for pb in pose_bones if pb.parent is None)
+		root_bones = (pb for pb in arm_obj.pose.bones if pb.parent is None)
 		index = 0
 
 		for root_bone in root_bones:

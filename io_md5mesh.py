@@ -78,7 +78,8 @@ class Mesh:
 
 		self.mesh_obj = mesh_obj
 		self.weights = []
-		self.shader = mesh.materials[0].name
+		self.shader = (mesh.materials[0].name if mesh.materials
+					   else "")
 
 		self.bm = bmesh.new()
 		self.bm.from_mesh(mesh)
@@ -98,7 +99,7 @@ class Mesh:
 
 		# split vertices with multiple uv coordinates
 		seams = []
-		tag_verts = []
+		tag_verts = set()
 		layer_uv = bm.loops.layers.uv.active
 
 		for edge in bm.edges:
@@ -117,10 +118,11 @@ class Mesh:
 					   vec_equals(uvs[0][1], uvs[1][0]))
 
 			if not all(results):
-				if results[0]: tag_verts.append(loops[0][0].vert)
-				if results[1]: tag_verts.append(loops[0][1].vert)
+				if results[0]: tag_verts.add(loops[0][0].vert)
+				if results[1]: tag_verts.add(loops[0][1].vert)
 				seams.append(edge)
 
+		tag_verts = list(tag_verts)
 		bmesh.ops.split_edges(bm, edges=seams, verts=tag_verts, use_verts=True)
 
 		# triangulate
