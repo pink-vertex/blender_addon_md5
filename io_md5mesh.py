@@ -289,8 +289,10 @@ def read_md5mesh(filepath):
 		for joint_name, mat in matrices:
 			mesh_obj.vertex_groups.new(name=joint_name)
 
+		mesh_obj.parent = arm_obj
 		arm_mod = mesh_obj.modifiers.new(type='ARMATURE', name="MD5_skeleton")
 		arm_mod.object = arm_obj
+		arm_mod.use_deform_preserve_volume = True
 
 		bpy.context.scene.objects.link(mesh_obj)
 
