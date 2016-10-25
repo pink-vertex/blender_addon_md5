@@ -84,17 +84,6 @@ class DualQuat:
         self.d = 0.5 * Quaternion((0.0, *loc)) * rot
         return self
 
-    def from_bone(self, bone):
-        loc, rot, scale = bone.matrix_local.decompose()
-        self.from_loc_rot(loc, rot)
-        return self
-
-    def from_pose_bone(self, pb):
-        mat = mat_offset(pb) * pb.matrix_basis
-        loc, rot, scale = mat.decompose()
-        self.from_loc_rot(loc, rot)
-        return self
-
     def to_matrix(self):
         mat = Matrix()
         r = self.r
@@ -119,39 +108,53 @@ class DualQuat:
         return mat
 
     def to_loc_rot(self):
+        loc = 2.0 * self.d * self.r.inverted()
         return (
-            Vector((2.0 * (self.d * self.r.inverted()))[1:]),
+            Vector(loc[1:]),
             self.r.copy())
 
     def translate(self, t):
         loc, rot = self.to_loc_rot()
         self.from_loc_rot(loc + t, rot)
 
-def adjust(dq, yaw, pitch, roll, translation=None):
-    axes = (
-        Vector(( 0.0,  0.0,  1.0)),
-        Vector(( 0.0, -1.0,  0.0)),
-        Vector((-1.0,  0.0,  0.0))
-    )
-    angles = yaw, pitch, roll
+class BoneAdjustment:
+    def __init__(self, name, yaw=0.0, pitch=0.0, roll=0.0, translation=None):
+        self.name = name
+        self.yaw = yaw
+        self.pitch = pitch
+        self.roll = roll
 
-    for axis, angle in zip(axes, angles):
-        dq.mulorient(Quaternion(axis, math.radians(angle)))
+        if translation is not None:
+            translation = 0.25 * Vector(translation)
 
-    if translation is not None:
-        dq.translate(translation)
+        self.translation = translation
 
-def conv_sauerbraten(dq):
-    loc, rot = dq.to_loc_rot()
-    rot.w = -rot.w
-    rot.y = -rot.y
-    loc.y = -loc.y
-    dq.from_loc_rot(loc, rot)
+    def adjust(self, dq):
+        axes = (
+            Vector(( 0.0,  0.0,  1.0)),
+            Vector(( 0.0, -1.0,  0.0)),
+            Vector((-1.0,  0.0,  0.0))
+        )
+        angles = self.yaw, self.pitch, self.roll
 
-def adjust_sb(dq, *args):
-    conv_sauerbraten(dq)
-    adjust(dq, *args)
-    conv_sauerbraten(dq)
+        for axis, angle in zip(axes, angles):
+            dq.mulorient(Quaternion(axis, math.radians(angle)))
+
+        if self.translation is not None:
+            dq.translate(self.translation)
+
+    @staticmethod
+    def conv_sauerbraten(dq):
+        loc, rot = dq.to_loc_rot()
+        rot.w = -rot.w
+        rot.y = -rot.y
+        loc.y = -loc.y
+        dq.from_loc_rot(loc, rot)
+
+    def adjust_sb(self, dq):
+        self.conv_sauerbraten(dq)
+        self.adjust(dq)
+        self.conv_sauerbraten(dq)
 
 def convert_kf_pts(kf_pts, cls):
     return cls(kf.co.y for kf in kf_pts)
@@ -197,9 +200,7 @@ def adjust_bone_animation(adjustment, pb, fcu_loc, fcu_rot):
         dq_frame = DualQuat().from_loc_rot(loc, rot)
         dq_frame = dq_ofs * dq_frame
 
-        pitch, yaw, roll = adjustment[0]
-        translation = Vector(adjustment[1])
-        adjust_sb(dq_frame, pitch, yaw, roll, translation)
+        adjustment.adjust_sb(dq_frame)
 
         dq_frame = dq_ofs_inv * dq_frame
         loc, rot = dq_frame.to_loc_rot()
@@ -211,14 +212,15 @@ def adjust_animation(obj, adjustments):
     action = obj.animation_data.action
     lookup_transform = create_fcu_dict(action)
 
-    for key, value in adjustments:
-        pose_bone = obj.pose.bones[key]
-        fcu_loc, fcu_rot = lookup_transform[key]
-        adjust_bone_animation(value, pose_bone, fcu_loc, fcu_rot)
+    for adjustment in adjustments:
+        name = adjustment.name
+        pose_bone = obj.pose.bones[name]
+        fcu_loc, fcu_rot = lookup_transform[name]
+        adjust_bone_animation(adjustment, pose_bone, fcu_loc, fcu_rot)
 
 def test():
     obj = bpy.data.objects["Armature_Hands"]
-    adjustments = ( ("Root", ((11.9, -5.4, 0.0), (0.4, 0.0, 0.0)) ),)
+    adjustments = ( BoneAdjustment("Root", 11.9, -5.4, 0.0, (0.4, 0.0, 0.0)), )
     adjust_animation(obj, adjustments)
 
     bpy.context.scene.frame_set(0)
