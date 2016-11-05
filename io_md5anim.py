@@ -129,24 +129,24 @@ def read_md5anim(filepath):
 	data_path_loc = 'pose.bones["{:s}"].location'
 	data_path_rot = 'pose.bones["{:s}"].rotation_quaternion'
 
-	t_Int	= "(-?\d+)"
-	t_Float = "(-?\d+\.\d+)"
-	t_Word	= "(\S+)"
+	t_Int	= r"(-?\d+)"
+	t_Float = r"(-?\d+\.\d+)"
+	t_Word	= r"(\S+)"
 	t_QuotedString = '"([^"]*)"' # does not allow escaping \"
-	t_Tuple2f = "\s+".join(("\(", t_Float, t_Float, "\)"))
-	t_Tuple3f = "\s+".join(("\(", t_Float, t_Float, t_Float, "\)"))
+	t_Tuple2f = "\\s+".join(("\\(", t_Float, t_Float, "\\)"))
+	t_Tuple3f = "\\s+".join(("\\(", t_Float, t_Float, t_Float, "\\)"))
 
-	re_end = construct("}")
+	re_end = construct("\\}")
 	re_num_frames = construct("numFrames", t_Int)
 	re_framerate = construct("frameRate", t_Int)
 	re_num_components = construct("numAnimatedComponents", t_Int)
-	re_hierarchy = construct("hierarchy", "{")
+	re_hierarchy = construct("hierarchy", "\\{")
 	re_joint = construct(t_QuotedString, t_Int, t_Int, t_Int)
-	re_bounds = construct("bounds", "{")
+	re_bounds = construct("bounds", "\\{")
 	re_bbox = construct(t_Tuple3f, t_Tuple3f)
-	re_baseframe = construct("baseframe", "{")
+	re_baseframe = construct("baseframe", "\\{")
 	re_bframe = construct(t_Tuple3f, t_Tuple3f)
-	re_frame = construct("frame", t_Int, "{")
+	re_frame = construct("frame", t_Int, "\\{")
 	re_float = construct(t_Float)
 	re_endline = construct("\n")
 

@@ -242,21 +242,21 @@ class Joint:
 #-------------------------------------------------------------------------------
 
 def read_md5mesh(filepath):
-	t_Int   = "(-?\d+)"
-	t_Float = "(-?\d+\.\d+)"
-	t_Word  = "(\S+)"
+	t_Int   = r"(-?\d+)"
+	t_Float = r"(-?\d+\.\d+)"
+	t_Word  = r"(\S+)"
 	t_QuotedString = '"([^"]*)"' # does not allow escaping \"
-	t_Tuple2f = "\s+".join(("\(", t_Float, t_Float, "\)"))
-	t_Tuple3f = "\s+".join(("\(", t_Float, t_Float, t_Float, "\)"))
+	t_Tuple2f = "\\s+".join(("\\(", t_Float, t_Float, "\\)"))
+	t_Tuple3f = "\\s+".join(("\\(", t_Float, t_Float, t_Float, "\\)"))
 
 	re_joint  = construct(t_QuotedString, t_Int, t_Tuple3f, t_Tuple3f)
 	re_vert   = construct("vert", t_Int, t_Tuple2f, t_Int, t_Int)
 	re_tri    = construct("tri", t_Int, t_Int, t_Int, t_Int)
 	re_weight = construct("weight", t_Int, t_Int, t_Float, t_Tuple3f)
-	re_end    = construct("}")
-	re_joints = construct("joints", "{")
+	re_end    = construct("\\}")
+	re_joints = construct("joints", "\\{")
 	re_nverts = construct("numverts", t_Int)
-	re_mesh   = construct("mesh", "{")
+	re_mesh   = construct("mesh", "\\{")
 	re_shader = construct("shader", t_QuotedString)
 	re_mesh_label = construct(".*?// meshes: (.*)$") # comment, used by sauerbraten
 
@@ -300,6 +300,8 @@ def read_md5mesh(filepath):
 		mat = (bpy.data.materials.get(mat_name) or
 			   bpy.data.materials.new(mat_name))
 		mesh.materials.append(mat)
+
+	return arm_obj
 
 def do_joints(lines, re_joint, re_end):
 	joints = gather(re_joint, re_end, lines)
