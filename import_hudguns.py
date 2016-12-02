@@ -247,8 +247,8 @@ def layer_mask(n):
 	return tuple(i == n for i in range(20))
 
 def set_transform(action, translation, scale):
-	fcu_loc   = create_fcurves(action, "location", 3)
-	fcu_scale = create_fcurves(action, "scale", 3)
+	fcu_loc   = create_fcurves(action, "location", 3, "ObjectTransform")
+	fcu_scale = create_fcurves(action, "scale", 3, "ObjectTransform")
 
 	loc = Vector(translation)
 	loc.y = -loc.y
@@ -257,8 +257,8 @@ def set_transform(action, translation, scale):
 	set_kf(fcu_loc,   0.0, loc)
 	set_kf(fcu_scale, 0.0, (scale, scale, scale))
 
-def create_fcurves(action, data_path, size):
-	return [action.fcurves.new(data_path, i) for i in range(size)]
+def create_fcurves(action, data_path, size, group=""):
+	return [action.fcurves.new(data_path, i, group) for i in range(size)]
 
 def set_kf(fcurves, time, values, interpolation="CONSTANT"):
 	for fcu, val in zip(fcurves, values):
@@ -267,11 +267,11 @@ def set_kf(fcurves, time, values, interpolation="CONSTANT"):
 
 # -------------------------------------------------------------------------------
 
-def import_from_config(sb_dir, cfg_filepath):
+def import_from_config(sb_dir, cfg_filepath, dn):
 	md5config = MD5Config(sb_dir, os.path.dirname(cfg_filepath))
 	md5config.read_cfg_file(cfg_filepath)
 
-	for p in md5config.parts:
+	for i, p in enumerate(md5config.parts):
 		arm_obj = read_md5mesh(p.filepath)
 		arm_obj.data.draw_type = "WIRE"
 		p.bobj = arm_obj
@@ -281,8 +281,12 @@ def import_from_config(sb_dir, cfg_filepath):
 
 		for anm in p.animations:
 			action = read_md5anim(anm[1])
-			action.name = anm[0]
 			action.use_fake_user = True
+			action.name = ("hands_"  + dn + "_idle"  if i == 0 and anm[0] == "gun idle"  else
+						   "hands_"  + dn + "_shoot" if i == 0 and anm[0] == "gun shoot" else
+						   "weapon_" + dn + "_idle"  if i == 1 and anm[0] == "gun idle"  else
+						   "weapon_" + dn + "_shoot" if i == 1 and anm[0] == "gun shoot" else
+							anm[0]) 
 
 			adjust_animation(arm_obj, p.adjustments)
 			anm[1] = action
@@ -310,6 +314,8 @@ def import_from_config(sb_dir, cfg_filepath):
 	for anm in md5config.parts[0].animations:
 		set_transform(anm[1], md5config.translation, md5config.scale)
 
+	md5config.parts[0].bobj.name = "Armature_Hands_" + dn
+	md5config.parts[1].bobj.name = "Armature_" + dn
 # ------------------------------------------------------------------------------
 
 def setup_cam(scene, fov, width, height):
@@ -354,6 +360,10 @@ if __name__ == "__main__":
 		cfg_filepath = os.path.join(sb_dir, fmt_cfg.format(playermodel=pm, weapon=dn))
 		print(cfg_filepath)
 		set_scene_layer(scene, layer_mask(i))
-		import_from_config(sb_dir, cfg_filepath)
+		import_from_config(sb_dir, cfg_filepath, dn)
 
 	scene.frame_set(0)
+
+	for img in bpy.data.images:
+		img.pack()
+		img.filepath = ""

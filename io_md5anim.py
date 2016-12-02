@@ -1,8 +1,8 @@
 from itertools import chain
 from .shared import * # for brevity use star import, also imports modules
 
-def create_fcurves(action, data_path, dim):
-	return tuple(action.fcurves.new(data_path, i) for i in range(dim))
+def create_fcurves(action, data_path, dim, group=""):
+	return tuple(action.fcurves.new(data_path, i, group) for i in range(dim))
 
 def insert_keyframe(fcurves, time, values, interpolation="LINEAR"):
 	for fcu, val in zip(fcurves, values):
@@ -197,9 +197,9 @@ def read_md5anim(filepath):
 		joint.bf = base_frame
 
 		joint.fcu_loc = create_fcurves(
-			action, data_path_loc.format(joint.name), 3)
+			action, data_path_loc.format(joint.name), 3, joint.name)
 		joint.fcu_rot = create_fcurves(
-			action, data_path_rot.format(joint.name), 4)
+			action, data_path_rot.format(joint.name), 4, joint.name)
 
 	frames = [[] for i in range(num_frames)]
 
