@@ -31,9 +31,9 @@ bl_info = {
 if "bpy" in locals():
 	import sys
 	import importlib
-	importlib.reload(sys.modules['md5.io_md5mesh'])
-	importlib.reload(sys.modules['md5.io_md5anim'])
-	importlib.reload(sys.modules['md5.import_hudguns'])
+	importlib.reload(sys.modules['io_md5.io_md5mesh'])
+	importlib.reload(sys.modules['io_md5.io_md5anim'])
+	importlib.reload(sys.modules['io_md5.import_hudguns'])
 
 import os
 import bpy

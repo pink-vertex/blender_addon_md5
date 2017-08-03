@@ -21,9 +21,9 @@ import os
 import bpy
 import math
 from mathutils import Vector
-from md5.io_md5mesh import read_md5mesh
-from md5.io_md5anim import read_md5anim
-from md5.dualquat import BoneAdjustment, adjust_animation
+from .io_md5mesh import read_md5mesh
+from .io_md5anim import read_md5anim
+from .dualquat import BoneAdjustment, adjust_animation
 
 # -------------------------------------------------------------------------------
 
@@ -316,6 +316,7 @@ def import_from_config(sb_dir, cfg_filepath, dn):
 
 	md5config.parts[0].bobj.name = "Armature_Hands_" + dn
 	md5config.parts[1].bobj.name = "Armature_" + dn
+
 # ------------------------------------------------------------------------------
 
 def setup_cam(scene, fov, width, height):
