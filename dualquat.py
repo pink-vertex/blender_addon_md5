@@ -51,7 +51,7 @@ class DualQuat:
         return "DualQuat(%s, %s)" % (repr(self.r), repr(self.d))
 
     def conjugated(self):
-        result.self.copy()
+        result = self.copy()
         result.r.conjugate()
         result.d.conjugate()
         return result
